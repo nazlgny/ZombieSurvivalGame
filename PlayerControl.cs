@@ -1,75 +1,70 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.AI;
+using UnityEngine.UI;
 
-// Description: Controls the movement and behavior of zombies in the game.
-
-public class ZombieMovement : MonoBehaviour
+// Description: Handles player actions, health, and interactions with objects.
+public class NewBehaviourScript : MonoBehaviour
 {
-    private GameObject player; // Reference to the player.
-    public GameObject kalp; // Prefab for the heart item.
-    private int zombieLife = 3; // Zombie's health.
-    private float distance; // Distance to the player.
-    private GameControl control; // Reference to the GameControl script.
-    private int scoreFromDeadZombies = 10; // Score given when a zombie is killed.
+    public AudioClip shotVoice, dieVoice, takeLifeVoice, hurtVoice; // Audio clips for actions.
+    public Transform bulletPosition; // Position to spawn bullets.
+    public GameObject bullet; // Prefab for bullets.
+    public Image lifeBar; // UI element for displaying health.
+    private float lifeCount = 100f; // Player's initial health.
+    public GameObject explosion; // Prefab for explosion effect.
+    public GameControl control; // Reference to the GameControl script.
     private AudioSource AudioSource; // Audio source for playing sounds.
-    private bool zombieDies; // Tracks if the zombie is dead.
 
     void Start()
     {
         AudioSource = GetComponent<AudioSource>(); // Initialize the audio source.
-        player = GameObject.Find("Player"); // Find the player in the scene.
-        control = GameObject.Find("Scriptss")?.GetComponent<GameControl>();
-        if (control == null)
-        {
-            Debug.LogError("'Scriptss' GameObject does not have a GameControl component.");
-        }
     }
 
     void Update()
     {
-        GetComponent<NavMeshAgent>().destination = player.transform.position; // Set zombie's destination to the player.
-        distance = Vector3.Distance(transform.position, player.transform.position);
-        if (distance < 10f)
+        // Shoot a bullet when the player presses the F key.
+        if (Input.GetKeyDown(KeyCode.F))
         {
-            if (!AudioSource.isPlaying)
-                AudioSource.Play(); // Play the attack sound.
-            if (!zombieDies)
-                GetComponentInChildren<Animation>().Play("Zombie_Attack_01"); // Play the attack animation.
-        }
-        else
-        {
-            if (AudioSource.isPlaying)
-                AudioSource.Stop(); // Stop the attack sound.
+            AudioSource.PlayOneShot(shotVoice, 1f); // Play the shot sound.
+            GameObject go = Instantiate(bullet, bulletPosition.position, bulletPosition.rotation);
+            GameObject goExplosion = Instantiate(explosion, bulletPosition.position, bulletPosition.rotation);
+            go.GetComponent<Rigidbody>().velocity = bulletPosition.transform.forward * 10f;
+            Destroy(go.gameObject, 2f); // Destroy the bullet after 2 seconds.
+            Destroy(goExplosion.gameObject, 2f); // Destroy the explosion effect after 2 seconds.
         }
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (control == null)
+        // Handle collisions with zombies.
+        if (collision.collider.gameObject.tag.Equals("zombi"))
         {
-            Debug.LogError("'control' is null. Check if 'Scriptss' GameObject has GameControl.");
-            return;
-        }
-        if (collision.collider.gameObject.tag.Equals("bullet"))
-        {
-            Debug.Log("Zombie hit by bullet.");
-            zombieLife--; // Decrease zombie health.
-            if (zombieLife == 0)
+            AudioSource.PlayOneShot(hurtVoice, 1f); // Play the hurt sound.
+            lifeCount -= 10f; // Decrease health.
+            float k = lifeCount / 100f; // Calculate health percentage.
+            lifeBar.fillAmount = k; // Update the health bar.
+            lifeBar.color = Color.Lerp(Color.red, Color.green, k); // Change color based on health.
+
+            if (lifeCount <= 0)
             {
-                control.ScoreIncrease(scoreFromDeadZombies); // Increase player score.
-                if (kalp != null)
-                {
-                    Instantiate(kalp, transform.position + Vector3.up * 2f, Quaternion.identity); // Spawn a heart item.
-                }
-                else
-                {
-                    Debug.LogError("Heart prefab is not assigned.");
-                }
-                GetComponentInChildren<Animation>().Play("Zombie_Death_01"); // Play the death animation.
-                Destroy(this.gameObject, 1.667f); // Destroy the zombie after animation.
+                AudioSource.PlayOneShot(dieVoice, 1f); // Play the death sound.
+                control.gameOver(); // Trigger game over.
             }
+        }
+    }
+
+    private void OnTriggerEnter(Collider c)
+    {
+        // Handle collisions with health items.
+        if (c.gameObject.tag.Equals("heart"))
+        {
+            AudioSource.PlayOneShot(takeLifeVoice, 1f); // Play the health pickup sound.
+            if (lifeCount < 100)
+                lifeCount += 10f; // Increase health.
+            float k = lifeCount / 100f; // Calculate health percentage.
+            lifeBar.fillAmount = k; // Update the health bar.
+            lifeBar.color = Color.Lerp(Color.red, Color.green, k); // Change color based on health.
+            Destroy(c.gameObject); // Destroy the heart object.
         }
     }
 }
